@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- 
+        HTML HEAD SECTION
+        This is like the "settings" of our webpage
+    -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Currency Converter Calculator</title>
+    
+    <!-- 
+        Tailwind CSS CDN
+        This loads Tailwind CSS from the internet
+        No build tools needed - just include this link!
+    -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        /* 
+            Custom CSS for smooth animations
+            This makes the result appear nicely
+        */
+        .fade-in {
+            animation: fadeIn 0.5s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <!-- 
+        MAIN CONTAINER
+        This is the main box that holds everything
+        Tailwind classes: 
+        - flex: makes it a flexbox container
+        - items-center: centers items vertically
+        - justify-center: centers items horizontally
+        - min-h-screen: makes it at least full screen height
+    -->
+    <div class="flex items-center justify-center min-h-screen p-4">
+        
+        <!-- 
+            CARD CONTAINER
+            This is the white box that contains our converter
+            Tailwind classes create a nice card with shadow
+        -->
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            
+            <!-- HEADER -->
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">
+                    💱 Currency Converter
+                </h1>
+                <p class="text-gray-600">
+                    Convert between different currencies instantly
+                </p>
+            </div>
+
+            <!-- 
+                CONVERTER FORM
+                This is where users input their conversion request
+            -->
+            <form id="converterForm" class="space-y-6">
+                
+                <!-- AMOUNT INPUT -->
+                <div>
+                    <label for="amount" class="block text-sm font-medium text-gray-700 mb-2">
+                        Amount
+                    </label>
+                    <input 
+                        type="number" 
+                        id="amount" 
+                        name="amount"
+                        step="0.01"
+                        min="0"
+                        placeholder="Enter amount"
+                        required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                    >
+                </div>
+
+                <!-- FROM CURRENCY DROPDOWN -->
+                <div>
+                    <label for="fromCurrency" class="block text-sm font-medium text-gray-700 mb-2">
+                        From Currency
+                    </label>
+                    <select 
+                        id="fromCurrency" 
+                        name="fromCurrency"
+                        required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                    >
+                        <option value="">Loading currencies...</option>
+                    </select>
+                </div>
+
+                <!-- SWAP BUTTON (Visual arrow) -->
+                <div class="flex justify-center">
+                    <button 
+                        type="button" 
+                        id="swapButton"
+                        class="bg-gray-100 hover:bg-gray-200 p-2 rounded-full transition"
+                        title="Swap currencies"
+                    >
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- TO CURRENCY DROPDOWN -->
+                <div>
+                    <label for="toCurrency" class="block text-sm font-medium text-gray-700 mb-2">
+                        To Currency
+                    </label>
+                    <select 
+                        id="toCurrency" 
+                        name="toCurrency"
+                        required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                    >
+                        <option value="">Loading currencies...</option>
+                    </select>
+                </div>
+
+                <!-- CONVERT BUTTON -->
+                <button 
+                    type="submit"
+                    id="convertButton"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition transform hover:scale-105 active:scale-95"
+                >
+                    Convert
+                </button>
+
+            </form>
+
+            <!-- 
+                RESULT DISPLAY
+                This is where we show the conversion result
+                Initially hidden, shown after conversion
+            -->
+            <div id="resultContainer" class="mt-6 hidden">
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4 fade-in">
+                    <p class="text-sm text-green-700 font-medium mb-1">Conversion Result</p>
+                    <p id="resultText" class="text-2xl font-bold text-green-800"></p>
+                    <p id="rateText" class="text-sm text-green-600 mt-2"></p>
+                </div>
+            </div>
+
+            <!-- 
+                ERROR DISPLAY
+                Shows error messages if something goes wrong
+            -->
+            <div id="errorContainer" class="mt-6 hidden">
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4 fade-in">
+                    <p id="errorText" class="text-red-700"></p>
+                </div>
+            </div>
+
+            <!-- LOADING SPINNER (hidden by default) -->
+            <div id="loadingSpinner" class="mt-6 hidden text-center">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <p class="text-gray-600 mt-2">Converting...</p>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 
+        JAVASCRIPT CODE
+        This is where all the logic happens
+        Everything is in one script tag for simplicity
+    -->
+    <script>
+        /**
+         * CURRENCY CONVERTER FRONTEND
+         * 
+         * This JavaScript code:
+         * 1. Loads available currencies when page loads
+         * 2. Handles form submission
+         * 3. Sends request to backend
+         * 4. Displays result or error
+         */
+
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        // Backend server URL
+        // Change this if your backend runs on a different port or URL
+        const API_URL = 'http://localhost:3000';
+
+        // ============================================
+        // GET DOM ELEMENTS
+        // ============================================
+        // These are like getting handles to the HTML elements
+        // We'll use these to read values and update the page
+        const form = document.getElementById('converterForm');
+        const amountInput = document.getElementById('amount');
+        const fromCurrencySelect = document.getElementById('fromCurrency');
+        const toCurrencySelect = document.getElementById('toCurrency');
+        const convertButton = document.getElementById('convertButton');
+        const swapButton = document.getElementById('swapButton');
+        const resultContainer = document.getElementById('resultContainer');
+        const resultText = document.getElementById('resultText');
+        const rateText = document.getElementById('rateText');
+        const errorContainer = document.getElementById('errorContainer');
+        const errorText = document.getElementById('errorText');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+
+        // ============================================
+        // FUNCTION: Load currencies from backend
+        // ============================================
+        /**
+         * Fetches list of available currencies from backend
+         * and populates the dropdown menus
+         */
+        async function loadCurrencies() {
+            try {
+                // Make request to backend
+                const response = await fetch(`${API_URL}/currencies`);
+                const data = await response.json();
+
+                if (data.success && data.currencies) {
+                    // Clear existing options
+                    fromCurrencySelect.innerHTML = '<option value="">Select currency...</option>';
+                    toCurrencySelect.innerHTML = '<option value="">Select currency...</option>';
+
+                    // Add each currency as an option
+                    data.currencies.forEach(currency => {
+                        // Create option element
+                        const option1 = document.createElement('option');
+                        option1.value = currency.code;
+                        option1.textContent = `${currency.code} - ${currency.name}`;
+
+                        const option2 = document.createElement('option');
+                        option2.value = currency.code;
+                        option2.textContent = `${currency.code} - ${currency.name}`;
+
+                        // Add to both dropdowns
+                        fromCurrencySelect.appendChild(option1);
+                        toCurrencySelect.appendChild(option2);
+                    });
+
+                    console.log('✅ Currencies loaded successfully');
+                } else {
+                    throw new Error('Failed to load currencies');
+                }
+            } catch (error) {
+                console.error('❌ Error loading currencies:', error);
+                
+                // Show error message
+                errorText.textContent = 'Could not load currencies. Make sure backend is running!';
+                errorContainer.classList.remove('hidden');
+                
+                // Set default currencies as fallback
+                const defaultCurrencies = [
+                    { code: 'USD', name: 'US Dollar' },
+                    { code: 'EUR', name: 'Euro' },
+                    { code: 'GBP', name: 'British Pound' },
+                    { code: 'JPY', name: 'Japanese Yen' }
+                ];
+
+                fromCurrencySelect.innerHTML = '<option value="">Select currency...</option>';
+                toCurrencySelect.innerHTML = '<option value="">Select currency...</option>';
+
+                defaultCurrencies.forEach(currency => {
+                    const option1 = document.createElement('option');
+                    option1.value = currency.code;
+                    option1.textContent = `${currency.code} - ${currency.name}`;
+                    fromCurrencySelect.appendChild(option1);
+
+                    const option2 = document.createElement('option');
+                    option2.value = currency.code;
+                    option2.textContent = `${currency.code} - ${currency.name}`;
+                    toCurrencySelect.appendChild(option2);
+                });
+            }
+        }
+
+        // ============================================
+        // FUNCTION: Show loading state
+        // ============================================
+        function showLoading() {
+            loadingSpinner.classList.remove('hidden');
+            resultContainer.classList.add('hidden');
+            errorContainer.classList.add('hidden');
+            convertButton.disabled = true;
+            convertButton.textContent = 'Converting...';
+        }
+
+        // ============================================
+        // FUNCTION: Hide loading state
+        // ============================================
+        function hideLoading() {
+            loadingSpinner.classList.add('hidden');
+            convertButton.disabled = false;
+            convertButton.textContent = 'Convert';
+        }
+
+        // ============================================
+        // FUNCTION: Show result
+        // ============================================
+        function showResult(amount, from, to, result, rate) {
+            hideLoading();
+            errorContainer.classList.add('hidden');
+            resultContainer.classList.remove('hidden');
+            
+            // Format numbers with commas and 2 decimal places
+            const formattedAmount = parseFloat(amount).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            const formattedResult = result.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+
+            resultText.textContent = `${formattedAmount} ${from} = ${formattedResult} ${to}`;
+            rateText.textContent = `Exchange rate: 1 ${from} = ${rate.toFixed(6)} ${to}`;
+        }
+
+        // ============================================
+        // FUNCTION: Show error
+        // ============================================
+        function showError(message) {
+            hideLoading();
+            resultContainer.classList.add('hidden');
+            errorContainer.classList.remove('hidden');
+            errorText.textContent = message;
+        }
+
+        // ============================================
+        // FUNCTION: Handle form submission
+        // ============================================
+        /**
+         * This function runs when user clicks "Convert" button
+         * It:
+         * 1. Gets values from form
+         * 2. Sends request to backend
+         * 3. Displays result or error
+         */
+        async function handleConvert(event) {
+            // Prevent form from submitting normally (which would reload page)
+            event.preventDefault();
+
+            // Get values from form
+            const amount = amountInput.value.trim();
+            const from = fromCurrencySelect.value;
+            const to = toCurrencySelect.value;
+
+            // Validate inputs
+            if (!amount || !from || !to) {
+                showError('Please fill in all fields');
+                return;
+            }
+
+            if (from === to) {
+                showError('Please select different currencies');
+                return;
+            }
+
+            // Show loading state
+            showLoading();
+
+            try {
+                // Send POST request to backend
+                const response = await fetch(`${API_URL}/convert`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        amount: amount,
+                        from: from,
+                        to: to
+                    })
+                });
+
+                // Parse response
+                const data = await response.json();
+
+                if (data.success) {
+                    // Show result
+                    showResult(amount, from, to, data.result, data.rate);
+                } else {
+                    // Show error from backend
+                    showError(data.message || 'Conversion failed');
+                }
+            } catch (error) {
+                // Network error or backend not running
+                console.error('❌ Error:', error);
+                showError('Could not connect to server. Make sure backend is running on ' + API_URL);
+            }
+        }
+
+        // ============================================
+        // FUNCTION: Swap currencies
+        // ============================================
+        /**
+         * Swaps the "from" and "to" currency selections
+         * Useful when user wants to convert in reverse
+         */
+        function swapCurrencies() {
+            const fromValue = fromCurrencySelect.value;
+            const toValue = toCurrencySelect.value;
+
+            fromCurrencySelect.value = toValue;
+            toCurrencySelect.value = fromValue;
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        // These "listen" for user actions and run functions
+
+        // When form is submitted (user clicks Convert button)
+        form.addEventListener('submit', handleConvert);
+
+        // When swap button is clicked
+        swapButton.addEventListener('click', swapCurrencies);
+
+        // ============================================
+        // INITIALIZE ON PAGE LOAD
+        // ============================================
+        // When page loads, fetch currencies
+        // This runs automatically when page opens
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Currency Converter loaded!');
+            loadCurrencies();
+        });
+
+    </script>
+</body>
+</html>
+
