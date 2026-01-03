@@ -259,12 +259,30 @@ app.post('/convert', async (req, res) => {
         // ============================================
         // Return success response
         // ============================================
-        res.json({
-            success: true,
-            result: roundedAmount,
-            rate: exchangeRate,
-            message: `Converted ${amount} ${from} to ${roundedAmount} ${to}`
-        });
+        if (data && data.length > 0) {
+            const exchangeRate = data[0].rate_to_usd;
+            const convertedAmount = amount * exchangeRate;
+
+            // --- NEW: SAVE TO HISTORY ---
+            // We don't use 'await' here because we want the user to get their 
+            // result immediately while the save happens in the background.
+            supabase.from('currency_rates_history').insert([
+                { 
+                    currency_code: to, 
+                    rate_to_usd: exchangeRate, 
+                    recorded_at: new Date() 
+                }
+            ]).then(({ error }) => {
+                if (error) console.error("History Save Error:", error);
+            });
+            // ----------------------------
+
+            res.json({
+                success: true,
+                result: convertedAmount,
+                rate: exchangeRate
+            });
+        }
 
     } catch (error) {
         // If something goes wrong, return error response
@@ -364,6 +382,48 @@ app.get('/', (req, res) => {
 // ============================================
 // Get port from environment variable or use default 3000
 const PORT = process.env.PORT || 10000; // User Render's port or default to 10000
+
+// GET /history/:code - Returns the last 7 days of rates for a specific currency
+app.get('/history/:code', async (req, res) => {
+    try {
+        const { code } = req.params;
+        const { data, error } = await supabase
+            .from('currency_rates_history')
+            .select('rate_to_usd, recorded_at')
+            .eq('currency_code', code)
+            .order('recorded_at', { ascending: true })
+            .limit(20); // Get the most recent records
+
+        if (error) throw error;
+        res.json({ success: true, history: data });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET /history/:code - Returns the historical rates for the chart
+app.get('/history/:code', async (req, res) => {
+    try {
+        const { code } = req.params;
+        
+        const { data, error } = await supabase
+            .from('currency_rates_history')
+            .select('rate_to_usd, recorded_at')
+            .eq('currency_code', code)
+            .order('recorded_at', { ascending: true })
+            .limit(30); // Returns the last 30 data points
+
+        if (error) throw error;
+
+        res.json({
+            success: true,
+            history: data
+        });
+    } catch (error) {
+        console.error("History Fetch Error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
 
 // Start listening for requests
 app.listen(PORT, '0.0.0.0', () => {
