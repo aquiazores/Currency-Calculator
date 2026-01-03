@@ -287,35 +287,51 @@ app.post('/convert', async (req, res) => {
  * Returns list of all available currencies
  * Frontend uses this to populate dropdown menus
  */
+// ============================================
+// STEP 8: Endpoint to get available currencies
+// ============================================
 app.get('/currencies', async (req, res) => {
+    // 1. We define the list we WANT to see here
+    const mockedCurrencies = [
+        { code: 'USD', name: 'US Dollar' },
+        { code: 'EUR', name: 'Euro' },
+        { code: 'GBP', name: 'British Pound' },
+        { code: 'JPY', name: 'Japanese Yen' },
+        { code: 'CAD', name: 'Canadian Dollar' },
+        { code: 'AUD', name: 'Australian Dollar' },
+        { code: 'INR', name: 'Indian Rupee' },
+        { code: 'PHP', name: 'Philippine Peso' },
+        { code: 'THB', name: 'Thai Baht' },
+        { code: 'VND', name: 'Vietnamese Dong' }
+    ];
+
     try {
-        // Try to fetch from database
+        // 2. We skip the database check for now to force the new currencies to show
+        console.log('✅ Sending manual currency list (PHP, THB, VND included)');
+        
+        // This 'return' stops the function here and sends the list above
+        return res.json({ 
+            success: true, 
+            currencies: mockedCurrencies 
+        });
+
+        /* DATABASE CODE IS COMMENTED OUT BELOW FOR FUTURE USE
+           Once you add PHP/THB/VND to your Supabase dashboard, 
+           you can move the code back.
+        */
+        /*
         const { data: currencies, error } = await supabase
             .from('currencies')
             .select('code, name')
             .order('code');
 
-        if (error || !currencies || currencies.length === 0) {
-            // Fallback to mocked currencies if database fails
-            console.log('⚠️  Using mocked currencies');
-            const mockedCurrencies = [
-                { code: 'USD', name: 'US Dollar' },
-                { code: 'EUR', name: 'Euro' },
-                { code: 'GBP', name: 'British Pound' },
-                { code: 'JPY', name: 'Japanese Yen' },
-                { code: 'CAD', name: 'Canadian Dollar' },
-                { code: 'AUD', name: 'Australian Dollar' },
-                { code: 'INR', name: 'Indian Rupee' },
-                { code: 'PHP', name: 'Philippine Peso' },
-                { code: 'THB', name: 'Thai Baht' },
-                { code: 'VND', name: 'Vietnamese Dong' }
-            ];
-            return res.json({ success: true, currencies: mockedCurrencies });
+        if (!error && currencies && currencies.length > 0) {
+            return res.json({ success: true, currencies });
         }
+        */
 
-        res.json({ success: true, currencies });
     } catch (error) {
-        console.error('❌ Error fetching currencies:', error);
+        console.error('❌ Error in /currencies endpoint:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching currencies'
