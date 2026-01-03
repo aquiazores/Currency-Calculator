@@ -180,13 +180,9 @@ async function getExchangeRate(fromCurrency, toCurrency) {
  */
 app.post('/convert', async (req, res) => {
     try {
-        // Extract data from request body
-        // This is like reading the order from the customer
         const { amount, from, to } = req.body;
 
-        // ============================================
-        // Validation: Check if required data is provided
-        // ============================================
+        // 1. Validation
         if (!amount || !from || !to) {
             return res.status(400).json({
                 success: false,
@@ -194,10 +190,7 @@ app.post('/convert', async (req, res) => {
             });
         }
 
-        // Convert amount to number
         const amountNum = parseFloat(amount);
-        
-        // Check if amount is a valid number
         if (isNaN(amountNum) || amountNum <= 0) {
             return res.status(400).json({
                 success: false,
@@ -205,87 +198,44 @@ app.post('/convert', async (req, res) => {
             });
         }
 
-        // Check if currencies are the same
-        if (from === to) {
-            return res.status(400).json({
-                success: false,
-                message: 'Cannot convert currency to itself'
-            });
-        }
-
-        console.log(`🔄 Converting ${amount} ${from} to ${to}...`);
-
-        // ============================================
-        // Get exchange rate
-        // ============================================
+        // 2. Get the rate and calculate
         const exchangeRate = await getExchangeRate(from, to);
-
-        // ============================================
-        // Calculate converted amount
-        // ============================================
-        // Formula: converted_amount = amount × exchange_rate
-        // Example: 100 USD × 0.92 = 92 EUR
         const convertedAmount = amountNum * exchangeRate;
-
-        // Round to 2 decimal places (standard for currency)
         const roundedAmount = Math.round(convertedAmount * 100) / 100;
 
-        // ============================================
-        // Save to conversion history in Supabase
-        // ============================================
+        // 3. Save to Conversion History (Your existing table)
         try {
-            const { error: historyError } = await supabase
-                .from('conversion_history')
-                .insert({
-                    amount: amountNum,
-                    from_currency: from,
-                    to_currency: to,
-                    converted_amount: roundedAmount,
-                    exchange_rate: exchangeRate
-                });
+            await supabase.from('conversion_history').insert({
+                amount: amountNum,
+                from_currency: from,
+                to_currency: to,
+                converted_amount: roundedAmount,
+                exchange_rate: exchangeRate
+            });
+        } catch (err) {
+            console.error('⚠️ History save failed:', err.message);
+        }
 
-            if (historyError) {
-                // Log error but don't fail the request
-                // Conversion still works even if history save fails
-                console.error('⚠️  Could not save to history:', historyError.message);
-            } else {
-                console.log('✅ Saved to conversion history');
+        // 4. SAVE TO RATE HISTORY (For the new Graph/Chart)
+        // This uses the new table we created for the clock icon
+        supabase.from('currency_rates_history').insert([
+            { 
+                currency_code: to, 
+                rate_to_usd: exchangeRate, 
+                recorded_at: new Date() 
             }
-        } catch (historyError) {
-            // If Supabase is not set up, just log and continue
-            console.log('⚠️  History not saved (Supabase may not be configured)');
-        }
+        ]).then(({ error }) => {
+            if (error) console.error("Graph Data Save Error:", error);
+        });
 
-        // ============================================
-        // Return success response
-        // ============================================
-        if (data && data.length > 0) {
-            const exchangeRate = data[0].rate_to_usd;
-            const convertedAmount = amount * exchangeRate;
-
-            // --- NEW: SAVE TO HISTORY ---
-            // We don't use 'await' here because we want the user to get their 
-            // result immediately while the save happens in the background.
-            supabase.from('currency_rates_history').insert([
-                { 
-                    currency_code: to, 
-                    rate_to_usd: exchangeRate, 
-                    recorded_at: new Date() 
-                }
-            ]).then(({ error }) => {
-                if (error) console.error("History Save Error:", error);
-            });
-            // ----------------------------
-
-            res.json({
-                success: true,
-                result: convertedAmount,
-                rate: exchangeRate
-            });
-        }
+        // 5. Final Response
+        res.json({
+            success: true,
+            result: roundedAmount,
+            rate: exchangeRate
+        });
 
     } catch (error) {
-        // If something goes wrong, return error response
         console.error('❌ Error in /convert endpoint:', error);
         res.status(500).json({
             success: false,
