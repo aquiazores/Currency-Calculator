@@ -144,8 +144,11 @@ function getMockedRate(fromCurrency, toCurrency) {
         'JPY': 150.0,
         'CAD': 1.35,
         'AUD': 1.52,
-        'INR': 83.0
-    };
+        'INR': 83.0,
+        'PHP': 58.0,    // Philippine Peso
+        'THB': 34.5,    // Thai Baht
+        'VND': 25400.0  // Vietnamese Dong
+    };  
 
     const fromRate = rates[fromCurrency] || 1.0;
     const toRate = rates[toCurrency] || 1.0;
@@ -302,7 +305,10 @@ app.get('/currencies', async (req, res) => {
                 { code: 'JPY', name: 'Japanese Yen' },
                 { code: 'CAD', name: 'Canadian Dollar' },
                 { code: 'AUD', name: 'Australian Dollar' },
-                { code: 'INR', name: 'Indian Rupee' }
+                { code: 'INR', name: 'Indian Rupee' },
+                { code: 'PHP', name: 'Philippine Peso' },
+                { code: 'THB', name: 'Thai Baht' },
+                { code: 'VND', name: 'Vietnamese Dong' }
             ];
             return res.json({ success: true, currencies: mockedCurrencies });
         }
@@ -342,10 +348,10 @@ app.get('/', (req, res) => {
 // STEP 10: Start the server
 // ============================================
 // Get port from environment variable or use default 3000
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000; // User Render's port or default to 10000
 
 // Start listening for requests
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 Server is running!');
     console.log(`📍 Listening on http://localhost:${PORT}`);
     console.log(`📝 API endpoint: http://localhost:${PORT}/convert`);
