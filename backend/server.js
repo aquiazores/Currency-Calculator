@@ -84,51 +84,56 @@ console.log('✅ Connected to Supabase!');
  * 2. Get rate of "to" currency to USD
  * 3. Calculate: (from_rate / to_rate) = exchange rate
  */
+// ============================================
+// STEP 5: Helper function to get exchange rate
+// ============================================
 async function getExchangeRate(fromCurrency, toCurrency) {
     try {
-        if (fromCurrency === toCurrency) {
-            return 1;
+        if (fromCurrency === toCurrency) return 1;
+
+        // 1. Get rates from our manual list
+        const rates = {
+            'USD': 1.0,
+            'EUR': 0.92,
+            'GBP': 0.79,
+            'JPY': 150.0,
+            'CAD': 1.35,
+            'AUD': 1.52,
+            'INR': 83.0,
+            'PHP': 58.0,
+            'THB': 34.5,
+            'VND': 25400.0
+        };
+
+        const fromRate = rates[fromCurrency];
+        const toRate = rates[toCurrency];
+
+        // 2. Use manual rates if they exist
+        if (fromRate !== undefined && toRate !== undefined) {
+            console.log(`✅ Using manual rate: 1 ${fromCurrency} = ${toRate / fromRate} ${toCurrency}`);
+            return toRate / fromRate;
         }
 
-        // 1. ALWAYS check the manual rates first so the math is guaranteed to work
-        const manualRate = getMockedRate(fromCurrency, toCurrency);
-        
-        // If the currency exists in our manual list, use that immediately
-        if (manualRate !== 1 || fromCurrency === 'USD') {
-            console.log(`✅ Using manual rate for ${fromCurrency} to ${toCurrency}`);
-            return manualRate;
-        }
-
-        // 2. Fallback to database only if not found in manual list
-        const { data: currencies, error } = await supabase
+        // 3. Fallback to database only if currency isn't in our list
+        const { data: currencies } = await supabase
             .from('currencies')
             .select('code, rate_to_usd')
             .in('code', [fromCurrency, toCurrency]);
 
-        if (error || !currencies || currencies.length === 0) {
-            return manualRate; // Return the 1:1 fallback from mocked rates
-        }
+        const dbFrom = currencies?.find(c => c.code === fromCurrency)?.rate_to_usd || 1;
+        const dbTo = currencies?.find(c => c.code === toCurrency)?.rate_to_usd || 1;
 
-        const fromRate = currencies.find(c => c.code === fromCurrency)?.rate_to_usd || 1;
-        const toRate = currencies.find(c => c.code === toCurrency)?.rate_to_usd || 1;
-
-        return fromRate / toRate;
+        return dbTo / dbFrom;
     } catch (error) {
-        console.error('Error in getExchangeRate:', error);
-        return getMockedRate(fromCurrency, toCurrency);
+        console.error('❌ Error in getExchangeRate:', error);
+        return 1;
     }
 }
 
 // ============================================
-// STEP 6: Mocked exchange rates (fallback)
+// STEP 6: Mocked exchange rates (Legacy fallback)
 // ============================================
-/**
- * Returns hardcoded exchange rates
- * Used when database is not available
- * These are example rates, not real-time data
- */
 function getMockedRate(fromCurrency, toCurrency) {
-    // All rates are relative to USD (1 USD = X Currency)
     const rates = {
         'USD': 1.0,
         'EUR': 0.92,
@@ -140,15 +145,11 @@ function getMockedRate(fromCurrency, toCurrency) {
         'PHP': 58.0,
         'THB': 34.5,
         'VND': 25400.0
-    };  
-
-    // Formula: To get rate between two non-USD currencies:
-    // (Target Currency Rate) / (Source Currency Rate)
-    // Example USD to PHP: 58.0 / 1.0 = 58.0
+    };
     const fromRate = rates[fromCurrency] || 1.0;
     const toRate = rates[toCurrency] || 1.0;
-
     return toRate / fromRate;
+}
 
 // ============================================
 // STEP 7: Main conversion endpoint
