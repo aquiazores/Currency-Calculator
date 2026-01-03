@@ -5,6 +5,9 @@
         HTML HEAD SECTION
         This is like the "settings" of our webpage
     -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Currency Converter Calculator</title>
@@ -145,7 +148,14 @@
             -->
             <div id="resultContainer" class="mt-6 hidden">
                 <div class="bg-green-50 border border-green-200 rounded-lg p-4 fade-in">
-                    <p class="text-sm text-green-700 font-medium mb-1">Conversion Result</p>
+                    <div class="flex justify-between items-center mb-1">
+                        <p class="text-sm text-green-700 font-medium">Conversion Result</p>
+                        
+                        <button type="button" onclick="openHistoryModal()" class="text-green-700 hover:bg-green-100 p-1 rounded-full transition" title="View Rate History">
+                            <i data-lucide="clock" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+            
                     <p id="resultText" class="text-2xl font-bold text-green-800"></p>
                     <p id="rateText" class="text-sm text-green-600 mt-2"></p>
                 </div>
@@ -175,6 +185,27 @@
         This is where all the logic happens
         Everything is in one script tag for simplicity
     -->
+    
+    <div id="historyModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl transform transition-all">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800">Rate History (vs USD)</h3>
+                <button onclick="closeHistoryModal()" class="text-gray-500 hover:text-gray-700">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            
+            <div class="h-64 w-full">
+                <canvas id="historyChart"></canvas>
+            </div>
+
+            <div class="mt-4 text-center">
+                <button onclick="closeHistoryModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2 px-6 rounded-lg transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
     <script>
         /**
          * CURRENCY CONVERTER FRONTEND
@@ -210,6 +241,10 @@
         const errorContainer = document.getElementById('errorContainer');
         const errorText = document.getElementById('errorText');
         const loadingSpinner = document.getElementById('loadingSpinner');
+
+        // New elements for the History feature
+        const historyModal = document.getElementById('historyModal');
+        let historyChart = null;
 
         // ============================================
         // FUNCTION: Load currencies from backend
@@ -321,7 +356,12 @@
 
             resultText.textContent = `${formattedAmount} ${from} = ${formattedResult} ${to}`;
             rateText.textContent = `Exchange rate: 1 ${from} = ${rate.toFixed(6)} ${to}`;
+
+        // Fix: Force Lucide to render the icon now that the container is visible
+        if (window.lucide) {
+            lucide.createIcons();
         }
+    }
 
         // ============================================
         // FUNCTION: Show error
@@ -411,7 +451,71 @@
             fromCurrencySelect.value = toValue;
             toCurrencySelect.value = fromValue;
         }
+// ============================================
+// HISTORY & CHART FUNCTIONS
+// ============================================
 
+async function openHistoryModal() {
+    const toCurrency = toCurrencySelect.value;
+    
+    if (!toCurrency) {
+        alert("Please select a 'To Currency' first to see its history!");
+        return;
+    }
+
+    // Show the popup
+    historyModal.classList.remove('hidden');
+
+    try {
+        // Fetch data from your backend
+        const response = await fetch(`${API_URL}/history/${toCurrency}`);
+        const data = await response.json();
+
+        if (data.success && data.history && data.history.length > 0) {
+            renderChart(data.history, toCurrency);
+        } else {
+            alert(`No history data found for ${toCurrency} yet. Convert it a few times first to create history!`);
+            closeHistoryModal();
+        }
+    } catch (error) {
+        console.error("Error fetching history:", error);
+    }
+}
+
+function closeHistoryModal() {
+    historyModal.classList.add('hidden');
+}
+
+function renderChart(historyData, currencyCode) {
+    const ctx = document.getElementById('historyChart').getContext('2d');
+    
+    if (historyChart) {
+        historyChart.destroy(); // Clear old chart if it exists
+    }
+
+    // Prepare dates and rates for the graph
+    const labels = historyData.map(entry => new Date(entry.recorded_at).toLocaleDateString());
+    const rates = historyData.map(entry => entry.rate_to_usd);
+
+    historyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: `1 USD to ${currencyCode} Rate`,
+                data: rates,
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+}
         // ============================================
         // EVENT LISTENERS
         // ============================================
@@ -429,9 +533,14 @@
         // When page loads, fetch currencies
         // This runs automatically when page opens
         window.addEventListener('DOMContentLoaded', () => {
-            console.log('🚀 Currency Converter loaded!');
-            loadCurrencies();
-        });
+    console.log('🚀 Currency Converter loaded!');
+    loadCurrencies();
+    
+    // THIS PART IS NEW: It turns the <i> tags into real icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
 
     </script>
 </body>
