@@ -86,43 +86,35 @@ console.log('✅ Connected to Supabase!');
  */
 async function getExchangeRate(fromCurrency, toCurrency) {
     try {
-        // If converting from USD to USD, rate is 1
         if (fromCurrency === toCurrency) {
             return 1;
         }
 
-        // Fetch both currencies from database
+        // 1. ALWAYS check the manual rates first so the math is guaranteed to work
+        const manualRate = getMockedRate(fromCurrency, toCurrency);
+        
+        // If the currency exists in our manual list, use that immediately
+        if (manualRate !== 1 || fromCurrency === 'USD') {
+            console.log(`✅ Using manual rate for ${fromCurrency} to ${toCurrency}`);
+            return manualRate;
+        }
+
+        // 2. Fallback to database only if not found in manual list
         const { data: currencies, error } = await supabase
             .from('currencies')
             .select('code, rate_to_usd')
             .in('code', [fromCurrency, toCurrency]);
 
-        if (error) {
-            console.error('Error fetching currencies:', error);
-            throw error;
+        if (error || !currencies || currencies.length === 0) {
+            return manualRate; // Return the 1:1 fallback from mocked rates
         }
 
-        // If currencies not found in database, use mocked rates
-        // This is a fallback for when database is not set up yet
-        if (!currencies || currencies.length === 0) {
-            console.log('⚠️  Using mocked rates (database not set up)');
-            return getMockedRate(fromCurrency, toCurrency);
-        }
-
-        // Find the rates for both currencies
         const fromRate = currencies.find(c => c.code === fromCurrency)?.rate_to_usd || 1;
         const toRate = currencies.find(c => c.code === toCurrency)?.rate_to_usd || 1;
 
-        // Calculate exchange rate
-        // Example: USD to EUR
-        // USD rate = 1.0, EUR rate = 0.92
-        // Exchange rate = 1.0 / 0.92 = 1.0869 (1 USD = 1.0869 EUR)
-        const exchangeRate = fromRate / toRate;
-
-        return exchangeRate;
+        return fromRate / toRate;
     } catch (error) {
         console.error('Error in getExchangeRate:', error);
-        // Fallback to mocked rates if database fails
         return getMockedRate(fromCurrency, toCurrency);
     }
 }
@@ -136,7 +128,7 @@ async function getExchangeRate(fromCurrency, toCurrency) {
  * These are example rates, not real-time data
  */
 function getMockedRate(fromCurrency, toCurrency) {
-    // All rates are relative to USD (base currency)
+    // All rates are relative to USD (1 USD = X Currency)
     const rates = {
         'USD': 1.0,
         'EUR': 0.92,
@@ -145,16 +137,18 @@ function getMockedRate(fromCurrency, toCurrency) {
         'CAD': 1.35,
         'AUD': 1.52,
         'INR': 83.0,
-        'PHP': 58.0,    // Philippine Peso
-        'THB': 34.5,    // Thai Baht
-        'VND': 25400.0  // Vietnamese Dong
+        'PHP': 58.0,
+        'THB': 34.5,
+        'VND': 25400.0
     };  
 
+    // Formula: To get rate between two non-USD currencies:
+    // (Target Currency Rate) / (Source Currency Rate)
+    // Example USD to PHP: 58.0 / 1.0 = 58.0
     const fromRate = rates[fromCurrency] || 1.0;
     const toRate = rates[toCurrency] || 1.0;
 
-    return fromRate / toRate;
-}
+    return toRate / fromRate;
 
 // ============================================
 // STEP 7: Main conversion endpoint
