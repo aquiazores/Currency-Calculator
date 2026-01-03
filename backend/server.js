@@ -17,6 +17,7 @@
 // STEP 1: Import required packages
 // ============================================
 // These are like tools we need to build our server
+const fetch = require('node-fetch');
 
 const express = require('express');           // Express helps us create a web server
 const cors = require('cors');                 // CORS allows frontend to talk to backend
@@ -87,54 +88,42 @@ console.log('✅ Connected to Supabase!');
 // ============================================
 // STEP 5: Helper function to get exchange rate
 // ============================================
+// ============================================
+// STEP 5: Helper function to get exchange rate
+// ============================================
 async function getExchangeRate(fromCurrency, toCurrency) {
     try {
         if (fromCurrency === toCurrency) return 1;
 
-        // 1. Get rates from our manual list
-        const rates = {
-            'USD': 1.0,
-            'EUR': 0.92,
-            'GBP': 0.79,
-            'JPY': 150.0,
-            'CAD': 1.35,
-            'AUD': 1.52,
-            'INR': 83.0,
-            'PHP': 58.0,
-            'THB': 34.5,
-            'VND': 25400.0
-        };
+        // 1. Try to fetch LIVE rates from the API
+        const API_KEY = process.env.EXCHANGE_RATE_API_KEY;
+        const url = `https://v6.exchangerate-api.com/v6/${API_KEY}/latest/${fromCurrency}`;
+        
+        console.log(`🌐 Fetching live rate from API for ${fromCurrency}...`);
+        
+        // We set a timeout so the app doesn't hang if the API is slow
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-        const fromRate = rates[fromCurrency];
-        const toRate = rates[toCurrency];
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        const data = await response.json();
 
-        // 2. Use manual rates if they exist
-        if (fromRate !== undefined && toRate !== undefined) {
-            console.log(`✅ Using manual rate: 1 ${fromCurrency} = ${toRate / fromRate} ${toCurrency}`);
-            return toRate / fromRate;
+        if (data.result === 'success') {
+            const liveRate = data.conversion_rates[toCurrency];
+            if (liveRate) {
+                console.log(`✅ Live Rate Found: 1 ${fromCurrency} = ${liveRate} ${toCurrency}`);
+                return liveRate;
+            }
         }
-
-        // 3. Fallback to database only if currency isn't in our list
-        const { data: currencies } = await supabase
-            .from('currencies')
-            .select('code, rate_to_usd')
-            .in('code', [fromCurrency, toCurrency]);
-
-        const dbFrom = currencies?.find(c => c.code === fromCurrency)?.rate_to_usd || 1;
-        const dbTo = currencies?.find(c => c.code === toCurrency)?.rate_to_usd || 1;
-
-        return dbTo / dbFrom;
     } catch (error) {
-        console.error('❌ Error in getExchangeRate:', error);
-        return 1;
+        console.error('⚠️ Live API failed, shifting to manual fallback:', error.message);
     }
-}
 
-// ============================================
-// STEP 6: Mocked exchange rates (Legacy fallback)
-// ============================================
-function getMockedRate(fromCurrency, toCurrency) {
-    const rates = {
+    // 2. MANUAL FALLBACK (Your current list)
+    // This runs if the API is down or the currency isn't found
+    const manualRates = {
         'USD': 1.0,
         'EUR': 0.92,
         'GBP': 0.79,
@@ -146,11 +135,26 @@ function getMockedRate(fromCurrency, toCurrency) {
         'THB': 34.5,
         'VND': 25400.0
     };
-    const fromRate = rates[fromCurrency] || 1.0;
-    const toRate = rates[toCurrency] || 1.0;
-    return toRate / fromRate;
-}
 
+    const fromRate = manualRates[fromCurrency];
+    const toRate = manualRates[toCurrency];
+
+    if (fromRate !== undefined && toRate !== undefined) {
+        console.log(`✅ Using manual fallback rate: ${toRate / fromRate}`);
+        return toRate / fromRate;
+    }
+
+    // 3. DATABASE FALLBACK (The last resort)
+    const { data: currencies } = await supabase
+        .from('currencies')
+        .select('code, rate_to_usd')
+        .in('code', [fromCurrency, toCurrency]);
+
+    const dbFrom = currencies?.find(c => c.code === fromCurrency)?.rate_to_usd || 1;
+    const dbTo = currencies?.find(c => c.code === toCurrency)?.rate_to_usd || 1;
+
+    return dbTo / dbFrom;
+}
 // ============================================
 // STEP 7: Main conversion endpoint
 // ============================================
